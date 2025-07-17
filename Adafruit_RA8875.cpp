@@ -194,18 +194,19 @@ void Adafruit_RA8875::softReset(void) {
 */
 /**************************************************************************/
 void Adafruit_RA8875::PLLinit(void) {
-  if (_size == RA8875_480x80 || _size == RA8875_480x128 ||
-      _size == RA8875_480x272) {
+  switch (_size) {
+  case RA8875_480x80:
+  case RA8875_480x128:
+  case RA8875_480x272:
     writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 10);
-    delay(1);
-    writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
-    delay(1);
-  } else /* (_size == RA8875_800x480) */ {
+    break;
+  default: /* (_size == RA8875_800x480) */
     writeReg(RA8875_PLLC1, RA8875_PLLC1_PLLDIV1 + 11);
-    delay(1);
-    writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
-    delay(1);
+    break;
   }
+  delay(1);
+  writeReg(RA8875_PLLC2, RA8875_PLLC2_DIV4);
+  delay(1);
 }
 
 /**************************************************************************/
@@ -218,47 +219,48 @@ void Adafruit_RA8875::initialize(void) {
   writeReg(RA8875_SYSR, RA8875_SYSR_16BPP | RA8875_SYSR_MCU8);
 
   /* Timing values */
-  uint8_t pixclk;
-  uint8_t hsync_start;
-  uint8_t hsync_pw;
-  uint8_t hsync_finetune;
-  uint8_t hsync_nondisp;
-  uint8_t vsync_pw;
-  uint16_t vsync_nondisp;
-  uint16_t vsync_start;
+  uint8_t  pixclk,
+           hsync_start,
+           hsync_pw,
+           hsync_finetune,
+           hsync_nondisp,
+           vsync_pw;
 
+  uint16_t vsync_nondisp,
+           vsync_start;
+
+
+  pixclk = RA8875_PCSR_PDATL | RA8875_PCSR_4CLK;
+  hsync_nondisp = 10;
+  hsync_start = 8;
+  hsync_pw = 48;
+  hsync_finetune = 0;
+  vsync_nondisp = 3;
+  vsync_start = 8;
+  vsync_pw = 10;
+  _voffset = 0;
+
+
+  // change initial values based on display size
   /* Set the correct values for the display being used */
-  if (_size == RA8875_480x80) {
-    pixclk = RA8875_PCSR_PDATL | RA8875_PCSR_4CLK;
-    hsync_nondisp = 10;
-    hsync_start = 8;
-    hsync_pw = 48;
-    hsync_finetune = 0;
-    vsync_nondisp = 3;
-    vsync_start = 8;
-    vsync_pw = 10;
-    _voffset = 192; // This uses the bottom 80 pixels of a 272 pixel controller
-  } else if (_size == RA8875_480x128 || _size == RA8875_480x272) {
-    pixclk = RA8875_PCSR_PDATL | RA8875_PCSR_4CLK;
-    hsync_nondisp = 10;
-    hsync_start = 8;
-    hsync_pw = 48;
-    hsync_finetune = 0;
-    vsync_nondisp = 3;
-    vsync_start = 8;
-    vsync_pw = 10;
-    _voffset = 0;
-  } else // (_size == RA8875_800x480)
+  switch (_size)
   {
+  case RA8875_480x80: // This uses the bottom 80 pixels of a 272 pixel controller
+    _voffset = 192;
+    break;
+  case RA8875_480x128:
+  case RA8875_480x272:
+    break;
+
+  default: // RA8875_800x480
     pixclk = RA8875_PCSR_PDATL | RA8875_PCSR_2CLK;
     hsync_nondisp = 26;
     hsync_start = 32;
     hsync_pw = 96;
-    hsync_finetune = 0;
     vsync_nondisp = 32;
     vsync_start = 23;
     vsync_pw = 2;
-    _voffset = 0;
+    break;
   }
 
   writeReg(RA8875_PCSR, pixclk);
@@ -461,8 +463,7 @@ void Adafruit_RA8875::textTransparent(uint16_t foreColor) {
 */
 /**************************************************************************/
 void Adafruit_RA8875::textEnlarge(uint8_t scale) {
-  if (scale > 3)
-    scale = 3; // highest setting is 3
+  if (scale > 3) scale = 3; // highest setting is 3
 
   /* Set font size flags */
   writeCommand(0x22);
@@ -502,8 +503,7 @@ void Adafruit_RA8875::cursorBlink(uint8_t rate) {
   temp |= RA8875_MWCR0_BLINK;
   writeData(temp);
 
-  if (rate > 255)
-    rate = 255;
+  if (rate > 255) rate = 255;
   writeCommand(RA8875_BTCR);
   writeData(rate);
 }
@@ -517,8 +517,7 @@ void Adafruit_RA8875::cursorBlink(uint8_t rate) {
 */
 /**************************************************************************/
 void Adafruit_RA8875::textWrite(const char *buffer, uint16_t len) {
-  if (len == 0)
-    len = strlen(buffer);
+  if (len == 0) len = strlen(buffer);
   writeCommand(RA8875_MRWC);
   for (uint16_t i = 0; i < len; i++) {
     writeData(buffer[i]);
@@ -567,11 +566,10 @@ void Adafruit_RA8875::graphicsMode(void) {
 /**************************************************************************/
 boolean Adafruit_RA8875::waitPoll(uint8_t regname, uint8_t waitflag) {
   /* Wait for the command to finish */
-  while (1) {
-    uint8_t temp = readReg(regname);
-    if (!(temp & waitflag))
-      return true;
-  }
+  while (1)
+    if (!(readReg(regname) & waitflag))
+	return true;
+
   return false; // MEMEFIX: yeah i know, unreached! - add timeout?
 }
 
@@ -700,17 +698,15 @@ void Adafruit_RA8875::drawPixels(uint16_t *p, uint32_t num, int16_t x,
   writeReg(RA8875_CURV1, y >> 8);
 
   uint8_t dir = RA8875_MWCR0_LRTD;
-  if (_rotation == 2) {
-    dir = RA8875_MWCR0_RLTD;
-  }
+
+  if (_rotation == 2) dir = RA8875_MWCR0_RLTD;
+
   writeReg(RA8875_MWCR0, (readReg(RA8875_MWCR0) & ~RA8875_MWCR0_DIRMASK) | dir);
 
   writeCommand(RA8875_MRWC);
   digitalWrite(_cs, LOW);
   SPI.transfer(RA8875_DATAWRITE);
-  while (num--) {
-    SPI.transfer16(*p++);
-  }
+  while (num--) SPI.transfer16(*p++);
   digitalWrite(_cs, HIGH);
 }
 
@@ -1061,11 +1057,8 @@ void Adafruit_RA8875::circleHelper(int16_t x, int16_t y, int16_t r,
 
   /* Draw! */
   writeCommand(RA8875_DCR);
-  if (filled) {
-    writeData(RA8875_DCR_CIRCLE_START | RA8875_DCR_FILL);
-  } else {
-    writeData(RA8875_DCR_CIRCLE_START | RA8875_DCR_NOFILL);
-  }
+  if(filled) writeData(RA8875_DCR_CIRCLE_START | RA8875_DCR_FILL);
+  else       writeData(RA8875_DCR_CIRCLE_START | RA8875_DCR_NOFILL);
 
   /* Wait for the command to finish */
   waitPoll(RA8875_DCR, RA8875_DCR_CIRCLE_STATUS);
@@ -1117,11 +1110,9 @@ void Adafruit_RA8875::rectHelper(int16_t x, int16_t y, int16_t w, int16_t h,
 
   /* Draw! */
   writeCommand(RA8875_DCR);
-  if (filled) {
-    writeData(0xB0);
-  } else {
-    writeData(0x90);
-  }
+
+  if (filled) writeData(0xB0);
+  else        writeData(0x90);
 
   /* Wait for the command to finish */
   waitPoll(RA8875_DCR, RA8875_DCR_LINESQUTRI_STATUS);
@@ -1182,11 +1173,8 @@ void Adafruit_RA8875::triangleHelper(int16_t x0, int16_t y0, int16_t x1,
 
   /* Draw! */
   writeCommand(RA8875_DCR);
-  if (filled) {
-    writeData(0xA1);
-  } else {
-    writeData(0x81);
-  }
+  if (filled) writeData(0xA1);
+  else        writeData(0x81);
 
   /* Wait for the command to finish */
   waitPoll(RA8875_DCR, RA8875_DCR_LINESQUTRI_STATUS);
@@ -1233,11 +1221,8 @@ void Adafruit_RA8875::ellipseHelper(int16_t xCenter, int16_t yCenter,
 
   /* Draw! */
   writeCommand(0xA0);
-  if (filled) {
-    writeData(0xC0);
-  } else {
-    writeData(0x80);
-  }
+  if (filled) writeData(0xC0);
+  else        writeData(0x80);
 
   /* Wait for the command to finish */
   waitPoll(RA8875_ELLIPSE, RA8875_ELLIPSE_STATUS);
@@ -1286,11 +1271,8 @@ void Adafruit_RA8875::curveHelper(int16_t xCenter, int16_t yCenter,
 
   /* Draw! */
   writeCommand(0xA0);
-  if (filled) {
-    writeData(0xD0 | (curvePart & 0x03));
-  } else {
-    writeData(0x90 | (curvePart & 0x03));
-  }
+  if (filled) writeReg(0xD0, curvePart & 0x03);
+  else        writeReg(0x90, curvePart & 0x03);
 
   /* Wait for the command to finish */
   waitPoll(RA8875_ELLIPSE, RA8875_ELLIPSE_STATUS);
@@ -1308,10 +1290,8 @@ void Adafruit_RA8875::roundRectHelper(int16_t x, int16_t y, int16_t w,
   y = applyRotationY(y);
   w = applyRotationX(w);
   h = applyRotationY(h);
-  if (x > w)
-    swap(x, w);
-  if (y > h)
-    swap(y, h);
+  if (x > w) swap(x, w);
+  if (y > h) swap(y, h);
 
   /* Set X */
   writeCommand(0x91);
@@ -1357,11 +1337,8 @@ void Adafruit_RA8875::roundRectHelper(int16_t x, int16_t y, int16_t w,
 
   /* Draw! */
   writeCommand(RA8875_ELLIPSE);
-  if (filled) {
-    writeData(0xE0);
-  } else {
-    writeData(0xA0);
-  }
+  if (filled) writeData(0xE0);
+  else        writeData(0xA0);
 
   /* Wait for the command to finish */
   waitPoll(RA8875_ELLIPSE, RA8875_DCR_LINESQUTRI_STATUS);
@@ -1450,10 +1427,8 @@ void Adafruit_RA8875::scrollY(int16_t dist) {
  */
 /**************************************************************************/
 void Adafruit_RA8875::GPIOX(boolean on) {
-  if (on)
-    writeReg(RA8875_GPIOX, 1);
-  else
-    writeReg(RA8875_GPIOX, 0);
+    if (on) writeReg(RA8875_GPIOX, 1);
+    else    writeReg(RA8875_GPIOX, 0);
 }
 
 /**************************************************************************/
@@ -1483,11 +1458,8 @@ void Adafruit_RA8875::PWM2out(uint8_t p) { writeReg(RA8875_P2DCR, p); }
 */
 /**************************************************************************/
 void Adafruit_RA8875::PWM1config(boolean on, uint8_t clock) {
-  if (on) {
-    writeReg(RA8875_P1CR, RA8875_P1CR_ENABLE | (clock & 0xF));
-  } else {
-    writeReg(RA8875_P1CR, RA8875_P1CR_DISABLE | (clock & 0xF));
-  }
+    if (on) writeReg(RA8875_P1CR, RA8875_P1CR_ENABLE  | (clock & 0xF));
+    else    writeReg(RA8875_P1CR, RA8875_P1CR_DISABLE | (clock & 0xF));
 }
 
 /**************************************************************************/
@@ -1499,11 +1471,8 @@ void Adafruit_RA8875::PWM1config(boolean on, uint8_t clock) {
 */
 /**************************************************************************/
 void Adafruit_RA8875::PWM2config(boolean on, uint8_t clock) {
-  if (on) {
-    writeReg(RA8875_P2CR, RA8875_P2CR_ENABLE | (clock & 0xF));
-  } else {
-    writeReg(RA8875_P2CR, RA8875_P2CR_DISABLE | (clock & 0xF));
-  }
+    if (on) writeReg(RA8875_P2CR, RA8875_P2CR_ENABLE  | (clock & 0xF));
+    else    writeReg(RA8875_P2CR, RA8875_P2CR_DISABLE | (clock & 0xF));
 }
 
 /**************************************************************************/
@@ -1519,22 +1488,16 @@ void Adafruit_RA8875::touchEnable(boolean on) {
   if (_size == RA8875_800x480) // match up touch size with LCD size
     adcClk = (uint8_t)RA8875_TPCR0_ADCCLK_DIV16;
 
+
   if (on) {
-    /* Enable Touch Panel (Reg 0x70) */
-    writeReg(RA8875_TPCR0, RA8875_TPCR0_ENABLE | RA8875_TPCR0_WAIT_4096CLK |
-                               RA8875_TPCR0_WAKEENABLE | adcClk); // 10mhz max!
-    /* Set Auto Mode      (Reg 0x71) */
-    writeReg(RA8875_TPCR1, RA8875_TPCR1_AUTO |
-                               // RA8875_TPCR1_VREFEXT |
-                               RA8875_TPCR1_DEBOUNCE);
-    /* Enable TP INT */
-    writeReg(RA8875_INTC1, readReg(RA8875_INTC1) | RA8875_INTC1_TP);
-  } else {
-    /* Disable TP INT */
-    writeReg(RA8875_INTC1, readReg(RA8875_INTC1) & ~RA8875_INTC1_TP);
-    /* Disable Touch Panel (Reg 0x70) */
-    writeReg(RA8875_TPCR0, RA8875_TPCR0_DISABLE);
+    writeReg(RA8875_INTC1, readReg(RA8875_INTC1) |  RA8875_INTC1_TP);                                           // Enable  TP INT
+    writeReg(RA8875_TPCR0, RA8875_TPCR0_ENABLE | RA8875_TPCR0_WAIT_4096CLK | RA8875_TPCR0_WAKEENABLE | adcClk); // Enable  Touch Panel (10mhz max!)
+    writeReg(RA8875_TPCR1, RA8875_TPCR1_AUTO | /* RA8875_TPCR1_VREFEXT | */ RA8875_TPCR1_DEBOUNCE);             // Set Auto Mode (Reg 0x71)
+    return;
   }
+
+  writeReg(RA8875_INTC1, readReg(RA8875_INTC1) & ~RA8875_INTC1_TP);                                             // Disable TP INT
+  writeReg(RA8875_TPCR0, RA8875_TPCR0_DISABLE);                                                                 // Disable Touch Panel (Reg 0x70)
 }
 
 /**************************************************************************/
@@ -1546,9 +1509,8 @@ void Adafruit_RA8875::touchEnable(boolean on) {
 */
 /**************************************************************************/
 boolean Adafruit_RA8875::touched(void) {
-  if (readReg(RA8875_INTC2) & RA8875_INTC2_TP)
-    return true;
-  return false;
+  if (readReg(RA8875_INTC2) & RA8875_INTC2_TP) return true;
+  else                                         return false;
 }
 
 /**************************************************************************/
@@ -1593,10 +1555,8 @@ boolean Adafruit_RA8875::touchRead(uint16_t *x, uint16_t *y) {
 */
 /**************************************************************************/
 void Adafruit_RA8875::displayOn(boolean on) {
-  if (on)
-    writeReg(RA8875_PWRR, RA8875_PWRR_NORMAL | RA8875_PWRR_DISPON);
-  else
-    writeReg(RA8875_PWRR, RA8875_PWRR_NORMAL | RA8875_PWRR_DISPOFF);
+    if (on) writeReg(RA8875_PWRR, RA8875_PWRR_NORMAL | RA8875_PWRR_DISPON );
+    else    writeReg(RA8875_PWRR, RA8875_PWRR_NORMAL | RA8875_PWRR_DISPOFF);
 }
 
 /**************************************************************************/
@@ -1607,10 +1567,8 @@ void Adafruit_RA8875::displayOn(boolean on) {
 */
 /**************************************************************************/
 void Adafruit_RA8875::sleep(boolean sleep) {
-  if (sleep)
-    writeReg(RA8875_PWRR, RA8875_PWRR_DISPOFF | RA8875_PWRR_SLEEP);
-  else
-    writeReg(RA8875_PWRR, RA8875_PWRR_DISPOFF);
+    if (sleep) writeReg(RA8875_PWRR, RA8875_PWRR_DISPOFF | RA8875_PWRR_SLEEP);
+    else       writeReg(RA8875_PWRR, RA8875_PWRR_DISPOFF);
 }
 
 /************************* Low Level ***********************************/
