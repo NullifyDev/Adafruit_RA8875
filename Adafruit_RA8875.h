@@ -288,9 +288,9 @@ private:
   int16_t applyRotationY(int16_t y);
 
   void swap(int16_t &x, int16_t &y) {
-    int16_t temp = x;
-    x = y;
-    y = temp;
+    x = y ^ x;
+    y = x ^ y;
+    x = y ^ y;
   }
 
   uint8_t _cs, _rst;
